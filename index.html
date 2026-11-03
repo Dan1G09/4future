@@ -141,6 +141,15 @@ th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}th{col
 .fl button{background:none;border:0;color:inherit;font:inherit;cursor:pointer}.fl button:hover{color:var(--cy)}
 .ok{text-align:center;padding:20px 0}.ok .n{font-size:1.8rem;font-weight:800}
 @media(max-width:760px){.fg{grid-template-columns:1fr}.od summary{grid-template-columns:1fr 1fr}.ast{grid-template-columns:1fr}}
+#co{width:min(980px,96vw)}
+.cgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:24px}
+.sum{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;align-self:start}
+.sum h4{margin:0 0 8px}.sum .r{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.sum .t{display:flex;justify-content:space-between;font-weight:800;font-size:1.15rem;margin-top:10px}.sum small{display:block;margin-top:10px;color:var(--mu)}
+.cf2{display:none;grid-column:1/-1;grid-template-columns:1fr 1fr;gap:12px;background:#000;border:1px solid var(--line);border-radius:14px;padding:14px}
+.fg:has(input[value="Bank card"]:checked) .cf2{display:grid}
+.perr{color:#ff6b81;min-height:1.2em}.chk{flex-direction:row!important;gap:10px!important;align-items:flex-start}
+@media(max-width:760px){.cgrid,.cf2{grid-template-columns:1fr}}
 </style></head>
 <body>
 <header><div class="wrap nav">
@@ -261,38 +270,57 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 let db=null;try{window.claude&&claude.use("db").then(d=>{db=d}).catch(()=>{})}catch(e){}
 const LK="4f-orders",lo=()=>{try{return JSON.parse(localStorage.getItem(LK)||"[]")}catch(e){return[]}},ls=a=>{try{localStorage.setItem(LK,JSON.stringify(a))}catch(e){}};
 const ST=["New","Processing","Shipped","Completed","Cancelled"];
-let st=1,F={},pay="Bank card",ord=null;
+let st=1,F={},pay="Bank card",CD={},ord=null;
 const CL=()=>Object.keys(cart).filter(i=>P.some(p=>p.id===i)).map(id=>({x:P.find(p=>p.id===id),q:cart[id]}));
 const tot=()=>CL().reduce((s,r)=>s+r.x.p*r.q,0);
+const lun=n=>{let s=0,a=false;for(let i=n.length-1;i>=0;i--){let d=+n[i];if(a){d*=2;if(d>9)d-=9}s+=d;a=!a}return n.length>=13&&s%10===0};
+const brand=n=>/^4/.test(n)?"Visa":/^(5[1-5]|2[2-7])/.test(n)?"Mastercard":/^3[47]/.test(n)?"American Express":"Card";
+const cardTxt=o=>o.card?`${esc(o.card.brand)} •••• ${esc(o.card.last4)}`:esc(o.pay);
 function openCO(){if(!CL().length)return toast("Add a product to your cart first");tg(false);st=1;drawCO();$("co").showModal()}
 function drawCO(){const sp=["Details","Payment","Review"];
-let h=`<div class="cw"><button class="x" id="cx" aria-label="Close checkout">✕</button><h2>Checkout</h2>`;
-if(st<4)h+=`<ol class="steps">${sp.map((s,i)=>`<li class="${i+1===st?"on":i+1<st?"dn":""}">${i+1}. ${s}</li>`).join("")}</ol>`;
-if(st===1)h+=`<form id="f1" class="fg">${[["name","Full name","text"],["email","Email","email"],["phone","Phone","tel"],["country","Country","text"],["zip","ZIP / postal code","text"],["city","City","text"],["address","Street and house number","text"]].map(([k,l,t],i)=>`<label class="${i===6?"w":""}">${l}<input name="${k}" type="${t}" required value="${esc(F[k]||"")}"></label>`).join("")}<label class="w">Note (optional)<textarea name="note" rows="2">${esc(F.note||"")}</textarea></label><button class="btn w" type="submit">Continue to payment</button></form>`;
-if(st===2)h+=`<form id="f2" class="fg">${["Bank card","Bank transfer","Cash on delivery"].map(o=>`<label class="opt w"><input type="radio" name="pay" value="${o}"${o===pay?" checked":""}> ${o}</label>`).join("")}<p class="mu w">Demo store: no card or payment data is collected or charged.</p><button class="btn w" type="submit">Review order</button><button class="det w" type="button" id="bk">Back</button></form>`;
-if(st===3)h+=`<table class="rv">${CL().map(r=>`<tr><td>${r.x.n} × ${r.q}</td><td>${eur(r.x.p*r.q)}</td></tr>`).join("")}<tr><th>Total</th><td><b>${eur(tot())}</b></td></tr></table><p class="mu"><b>${esc(F.name)}</b><br>${esc(F.address)}, ${esc(F.zip)} ${esc(F.city)}, ${esc(F.country)}<br>${esc(F.email)} · ${esc(F.phone)}<br>Payment: ${pay}</p><div class="fg" style="margin-top:16px"><button class="btn w" id="place">Place order</button><button class="det w" id="bk">Back</button></div>`;
-if(st===4)h+=`<div class="ok"><div style="font-size:3rem">✅</div><h2>Thank you, ${esc(F.name)}!</h2><p class="mu">Your order number</p><div class="n grad">${ord.no}</div><p class="mu" style="margin-top:12px">We will contact you at ${esc(F.email)} about your order.</p>${ord.shared?"":`<p class="mu" style="margin-top:8px">Demo note: the shared order database is not available in this view, so the order was saved on this device only.</p>`}<button class="btn" id="cx2" style="margin-top:16px">Back to shop</button></div>`;
-$("co").innerHTML=h+`</div>`}
-$("co").addEventListener("submit",e=>{e.preventDefault();const f=e.target;if(f.id==="f1"){F=Object.fromEntries(new FormData(f));st=2}else{pay=new FormData(f).get("pay");st=3}drawCO()});
-$("co").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;if(t.id==="cx"||t.id==="cx2")$("co").close();if(t.id==="bk"){st--;drawCO()}if(t.id==="place")place()});
+let h=`<div class="cw"><button class="x" id="cx" aria-label="Close checkout">✕</button><h2>Secure checkout</h2>`;
+if(st===4)h+=`<div class="ok"><div style="font-size:3rem">✅</div><h2>Thank you, ${esc(F.name)}!</h2><p class="mu">Your order number</p><div class="n grad">${ord.no}</div><p class="mu" style="margin-top:12px">We will contact you at ${esc(F.email)} about your order.</p>${ord.shared?"":`<p class="mu" style="margin-top:8px">Demo note: no shared order storage is available in this view, so the order was saved on this device only.</p>`}<button class="btn" id="cx2" style="margin-top:16px">Back to shop</button></div></div>`;
+else{h+=`<ol class="steps">${sp.map((s,i)=>`<li class="${i+1===st?"on":i+1<st?"dn":""}">${i+1}. ${s}</li>`).join("")}</ol><div class="cgrid"><div>`;
+if(st===1)h+=`<form id="f1" class="fg">${[["name","Full name","text","name"],["email","Email","email","email"],["phone","Phone","tel","tel"],["country","Country","text","country-name"],["zip","ZIP / postal code","text","postal-code"],["city","City","text","address-level2"],["address","Street and house number","text","street-address"]].map(([k,l,t,a],i)=>`<label class="${i===6?"w":""}">${l}<input name="${k}" type="${t}" autocomplete="${a}" required value="${esc(F[k]||"")}"></label>`).join("")}<label class="w">Note (optional)<textarea name="note" rows="2">${esc(F.note||"")}</textarea></label><button class="btn w" type="submit">Continue to payment</button></form>`;
+if(st===2)h+=`<form id="f2" class="fg">${["Bank card","Bank transfer","Cash on delivery"].map(o=>`<label class="opt w"><input type="radio" name="pay" value="${o}"${o===pay?" checked":""}> ${o}</label>`).join("")}<div class="cf2"><label class="w" style="grid-column:1/-1">Card number<input name="cn" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" maxlength="23"></label><label style="grid-column:1/-1">Name on card<input name="cname" autocomplete="cc-name"></label><label>Expiry (MM/YY)<input name="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5"></label><label>Security code<input name="cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="CVC" maxlength="4" type="password"></label></div><p class="perr w" id="perr"></p><p class="mu w">Demo store: card details are only checked in your browser. They are never stored, sent or charged. Only the card brand and last 4 digits are kept with the order.</p><button class="btn w" type="submit">Review order</button><button class="det w" type="button" id="bk">Back</button></form>`;
+if(st===3)h+=`<form id="f3" class="fg"><p class="mu w"><b>${esc(F.name)}</b><br>${esc(F.address)}, ${esc(F.zip)} ${esc(F.city)}, ${esc(F.country)}<br>${esc(F.email)} · ${esc(F.phone)}</p><p class="mu w">Payment: ${CD.brand?`${esc(CD.brand)} •••• ${esc(CD.last4)}`:esc(pay)}</p><label class="chk w"><input type="checkbox" required> I accept the terms and conditions and the privacy policy.</label><button class="btn w" id="place" type="submit">Place order</button><button class="det w" type="button" id="bk">Back</button></form>`;
+h+=`</div><aside class="sum"><h4>Order summary</h4>${CL().map(r=>`<div class="r"><span>${r.x.n} × ${r.q}</span><span>${eur(r.x.p*r.q)}</span></div>`).join("")}<div class="t"><span>Total</span><span class="grad">${eur(tot())}</span></div><small>🔒 Encrypted connection. Delivery details are confirmed after the order.</small></aside></div></div>`}
+$("co").innerHTML=h}
+$("co").addEventListener("input",e=>{const n=e.target,v=n.value;if(n.name==="cn")n.value=v.replace(/\D/g,"").slice(0,19).replace(/(.{4})/g,"$1 ").trim();if(n.name==="exp"){let d=v.replace(/\D/g,"").slice(0,4);n.value=d.length>2?d.slice(0,2)+"/"+d.slice(2):d}if(n.name==="cvc")n.value=v.replace(/\D/g,"")});
+$("co").addEventListener("submit",e=>{e.preventDefault();const f=e.target,fd=Object.fromEntries(new FormData(f));
+if(f.id==="f1"){F=fd;st=2}
+else if(f.id==="f2"){pay=fd.pay;if(pay==="Bank card"){const n=(fd.cn||"").replace(/\s/g,""),[mm,yy]=(fd.exp||"").split("/").map(Number),y=new Date().getFullYear(),m=new Date().getMonth()+1;
+const er=!lun(n)?"Please check the card number.":!(fd.cname||"").trim()?"Please enter the name on the card.":!(mm>=1&&mm<=12&&(2000+yy>y||(2000+yy===y&&mm>=m)))?"Please check the expiry date.":!/^\d{3,4}$/.test(fd.cvc||"")?"Please check the security code.":"";
+if(er){$("perr").textContent=er;return}CD={brand:brand(n),last4:n.slice(-4)}}else CD={};st=3}
+else{place();return}
+drawCO()});
+$("co").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;if(t.id==="cx"||t.id==="cx2")$("co").close();if(t.id==="bk"){st--;drawCO()}});
 async function place(){const b=$("place");b.disabled=true;b.textContent="Placing order…";
 const no="4F-"+Date.now().toString(36).toUpperCase().slice(-5)+Math.random().toString(36).slice(2,4).toUpperCase();
-const o={no,ts:Date.now(),customer:F,pay,status:"New",total:tot(),items:CL().map(r=>({id:r.x.id,n:r.x.n,p:r.x.p,q:r.q}))};
-let shared=false;try{if(db){await db.collection("orders").doc(no).set(o);shared=true}}catch(e){}
-ls([o,...lo()]);cart={};save();ord={no,shared};st=4;drawCO()}
+const o={no,ts:Date.now(),customer:F,pay,card:CD.brand?{brand:CD.brand,last4:CD.last4}:null,status:"New",total:tot(),items:CL().map(r=>({id:r.x.id,n:r.x.n,p:r.x.p,q:r.q}))};
+let ok=false;
+try{const r=await fetch("/api/orders",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({customer:F,pay,card:o.card,items:o.items.map(i=>({id:i.id,q:i.q}))})});if(r.ok){const j=await r.json();o.no=j.no;o.total=j.total;ok=true}}catch(e){}
+if(!ok){try{if(db){await db.collection("orders").doc(no).set(o);ok=true}}catch(e){}ls([o,...lo()])}
+CD={};cart={};save();ord={no:o.no,shared:ok};st=4;drawCO()}
 $("pay").onclick=openCO;
-let authed=false,unsub=null,OR=[],src="local",opn=new Set();
+let authed=false,unsub=null,OR=[],src="local",opn=new Set(),am=false,apw="",poll=null;
 $("adm").onclick=()=>{drawAD();$("ad").showModal();if(authed)startAD()};
-$("ad").addEventListener("close",()=>{authed=false;unsub&&unsub();unsub=null});
+$("ad").addEventListener("close",()=>{authed=false;am=false;apw="";unsub&&unsub();unsub=null;clearInterval(poll)});
 function drawAD(){if(authed)return renderAD();
-$("ad").innerHTML=`<div class="cw"><button class="x" id="ax" aria-label="Close">✕</button><h2>Admin login</h2><form id="lf" class="fg"><label class="w">Password<input type="password" id="pw" autocomplete="off" required></label><p class="mu w" id="lerr"></p><button class="btn w" type="submit">Log in</button></form></div>`}
+$("ad").innerHTML=`<div class="cw"><button class="x" id="ax" aria-label="Close">✕</button><h2>Admin login</h2><form id="lf" class="fg"><label class="w">Password<input type="password" id="pw" autocomplete="off" required></label><p class="perr w" id="lerr"></p><button class="btn w" type="submit">Log in</button></form></div>`}
 function startAD(){OR=lo();src="local";if(db){unsub&&unsub();unsub=db.collection("orders").orderBy("ts","desc").onSnapshot(s=>{OR=s.docs.map(d=>d.data());src="shared";renderAD()},()=>{OR=lo();src="local";renderAD()})}renderAD()}
+async function refresh(){if(!am||document.activeElement?.tagName==="SELECT")return;try{const r=await fetch("/api/orders",{headers:{"x-admin-password":apw}});if(r.ok){OR=await r.json();renderAD()}}catch(e){}}
 function renderAD(){const act=OR.filter(o=>o.status!=="Cancelled");
-$("ad").innerHTML=`<div class="cw"><button class="x" id="ax" aria-label="Close">✕</button><h2>Orders</h2><div class="ast"><div><strong>${OR.length}</strong>orders</div><div><strong>${OR.filter(o=>o.status==="New").length}</strong>new</div><div><strong>${eur(act.reduce((s,o)=>s+o.total,0))}</strong>total value (without cancelled)</div></div>${src==="local"?`<p class="mu" style="margin-bottom:12px">Shared order database unavailable: showing orders placed on this device only.</p>`:""}${OR.length?OR.map(o=>`<details class="od" data-no="${esc(o.no)}"${opn.has(o.no)?" open":""}><summary><b>${esc(o.no)}</b><span>${new Date(o.ts).toLocaleString("en-GB")}</span><span>${esc(o.customer?.name)}</span><span>${eur(o.total)}</span><span class="badge ${esc(o.status)}">${esc(o.status)}</span></summary><div class="bd"><p class="mu">${esc(o.customer?.email)} · ${esc(o.customer?.phone)}<br>${esc(o.customer?.address)}, ${esc(o.customer?.zip)} ${esc(o.customer?.city)}, ${esc(o.customer?.country)}<br>Payment: ${esc(o.pay)}${o.customer?.note?`<br>Note: ${esc(o.customer.note)}`:""}</p><table class="rv">${o.items.map(i=>`<tr><td>${esc(i.n)} × ${i.q}</td><td>${eur(i.p*i.q)}</td></tr>`).join("")}</table><p style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0"><select data-st="${esc(o.no)}" aria-label="Order status">${ST.map(s=>`<option${s===o.status?" selected":""}>${s}</option>`).join("")}</select><button class="det" data-del="${esc(o.no)}">Delete order</button></p></div></details>`).join(""):`<p class="empty">No orders yet.</p>`}</div>`}
-$("ad").addEventListener("submit",e=>{e.preventDefault();if(e.target.id!=="lf")return;if($("pw").value==="mokus"){authed=true;startAD()}else{$("lerr").textContent="Wrong password.";$("pw").select()}});
+$("ad").innerHTML=`<div class="cw"><button class="x" id="ax" aria-label="Close">✕</button><h2>Orders</h2><div class="ast"><div><strong>${OR.length}</strong>orders</div><div><strong>${OR.filter(o=>o.status==="New").length}</strong>new</div><div><strong>${eur(act.reduce((s,o)=>s+o.total,0))}</strong>total value (without cancelled)</div></div>${src==="local"?`<p class="mu" style="margin-bottom:12px">Shared order storage unavailable: showing orders placed on this device only.</p>`:""}${am?`<p style="margin:0 0 12px"><button class="det" id="rf">Refresh</button> <span class="mu">Updates automatically every 15 seconds.</span></p>`:""}${OR.length?OR.map(o=>`<details class="od" data-no="${esc(o.no)}"${opn.has(o.no)?" open":""}><summary><b>${esc(o.no)}</b><span>${new Date(o.ts).toLocaleString("en-GB")}</span><span>${esc(o.customer?.name)}</span><span>${eur(o.total)}</span><span class="badge ${esc(o.status)}">${esc(o.status)}</span></summary><div class="bd"><p class="mu">${esc(o.customer?.email)} · ${esc(o.customer?.phone)}<br>${esc(o.customer?.address)}, ${esc(o.customer?.zip)} ${esc(o.customer?.city)}, ${esc(o.customer?.country)}<br>Payment: ${cardTxt(o)}${o.customer?.note?`<br>Note: ${esc(o.customer.note)}`:""}</p><table class="rv">${o.items.map(i=>`<tr><td>${esc(i.n)} × ${i.q}</td><td>${eur(i.p*i.q)}</td></tr>`).join("")}</table><p style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0"><select data-st="${esc(o.no)}" aria-label="Order status">${ST.map(s=>`<option${s===o.status?" selected":""}>${s}</option>`).join("")}</select><button class="det" data-del="${esc(o.no)}">Delete order</button></p></div></details>`).join(""):`<p class="empty">No orders yet.</p>`}</div>`}
+$("ad").addEventListener("submit",async e=>{e.preventDefault();if(e.target.id!=="lf")return;const pw=$("pw").value;let r=null;
+try{r=await fetch("/api/orders",{headers:{"x-admin-password":pw}})}catch(x){}
+if(r&&r.status===401){$("lerr").textContent="Wrong password.";$("pw").select();return}
+if(r&&r.status>=500){$("lerr").textContent="Server storage is not configured yet (see setup steps).";return}
+if(r&&r.ok){am=true;apw=pw;OR=await r.json();src="server";authed=true;renderAD();poll=setInterval(refresh,15000);return}
+if(pw==="mokus"){authed=true;startAD()}else{$("lerr").textContent="Wrong password.";$("pw").select()}});
 $("ad").addEventListener("toggle",e=>{const n=e.target.dataset&&e.target.dataset.no;if(n)e.target.open?opn.add(n):opn.delete(n)},true);
-$("ad").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;if(t.id==="ax")$("ad").close();if(t.dataset.del&&confirm("Delete this order permanently?"))mut(t.dataset.del,null)});
+$("ad").addEventListener("click",e=>{const t=e.target.closest("button");if(!t)return;if(t.id==="ax")$("ad").close();if(t.id==="rf")refresh();if(t.dataset.del&&confirm("Delete this order permanently?"))mut(t.dataset.del,null)});
 $("ad").addEventListener("change",e=>{if(e.target.dataset.st)mut(e.target.dataset.st,e.target.value)});
-async function mut(no,v){try{if(src==="shared"){const r=db.collection("orders").doc(no);v===null?await r.delete():await r.update({status:v})}else{ls(v===null?lo().filter(o=>o.no!==no):lo().map(o=>o.no===no?{...o,status:v}:o));OR=lo();renderAD()}}catch(e){toast("Could not update the order")}}
+async function mut(no,v){try{if(am){const r=await fetch("/api/orders",{method:v===null?"DELETE":"PATCH",headers:{"content-type":"application/json","x-admin-password":apw},body:JSON.stringify({no,status:v})});if(!r.ok)throw 0;await refresh()}else if(src==="shared"){const r=db.collection("orders").doc(no);v===null?await r.delete():await r.update({status:v})}else{ls(v===null?lo().filter(o=>o.no!==no):lo().map(o=>o.no===no?{...o,status:v}:o));OR=lo();renderAD()}}catch(e){toast("Could not update the order")}}
 draw();render();
 </script></body></html>
