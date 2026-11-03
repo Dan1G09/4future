@@ -23,8 +23,8 @@ const rd = async (cmd) => {
   return j.result;
 };
 const isAdmin = (req) => {
-  const a = Buffer.from(String(req.headers["x-admin-password"] || "").trim());
-  const b = Buffer.from(PW);
+  const a = Buffer.from(String(req.headers["x-admin-password"] || "").trim().toLowerCase());
+  const b = Buffer.from(PW.toLowerCase());
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 const s = (v, n = 200) => String(v ?? "").trim().slice(0, n);
@@ -32,6 +32,7 @@ const s = (v, n = 200) => String(v ?? "").trim().slice(0, n);
 module.exports = async (req, res) => {
   try {
     const body = req.body || {};
+    if (req.method === "GET" && req.query && req.query.status) return res.status(200).json({ v: 2, storage: !!(U && T), customPassword: !!process.env.ADMIN_PASSWORD });
     if (req.method !== "POST" && !isAdmin(req)) return res.status(401).json({ error: "Unauthorized" });
     if (!U || !T) return res.status(500).json({ error: "Storage not configured" });
 
