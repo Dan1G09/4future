@@ -334,3 +334,4 @@ $("ad").addEventListener("change",e=>{if(e.target.dataset.st)mut(e.target.datase
 async function mut(no,v){try{if(am){const r=await fetch("/api/orders",{method:v===null?"DELETE":"PATCH",headers:{"content-type":"application/json","x-admin-password":apw},body:JSON.stringify({no,status:v})});if(!r.ok)throw 0;await refresh()}else if(src==="shared"){const r=db.collection("orders").doc(no);v===null?await r.delete():await r.update({status:v})}else{ls(v===null?lo().filter(o=>o.no!==no):lo().map(o=>o.no===no?{...o,status:v}:o));OR=lo();renderAD()}}catch(e){toast("Could not update the order")}}
 draw();render();
 </script></body></html>
+
